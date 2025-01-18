@@ -9,9 +9,10 @@ const dayOfEnd = new Date(_startDay.year, _startDay.month, _startDay.day, parseI
 
 
 function testCode(){
-  // console.log(getTargetDate())
-  // console.log(getTargetTime())
-  
+  console.log(getTargetDate())
+  console.log(getTargetTime())
+  console.log(dayOfStart);
+  console.log(dayOfEnd)
   // console.log(`ID: ${calendar}の予定を取得`);
   // console.log(getCalendarEvents(calendar, startDay, endDay));
   // console.log(oneCalendarLists(calendar, dayOfStart, dayOfEnd))
@@ -28,7 +29,7 @@ function getCalendarIds(): {} {
     CalID: PropertiesService.getScriptProperties().getProperty(key)
   }))
 
-  console.log(`getCalendarIds関数を実行。取得されたID：${targetCalendars}`)
+  console.log(`getCalendarIds関数を実行。取得されたID：${targetCalendars.map((item) => item.CalID)}`)
   return targetCalendars;
 } 
 
@@ -46,6 +47,8 @@ interface CustomTime{
 }
 function getTargetTime(): CustomTime{
   const values = SpreadsheetApp.getActiveSheet().getRange(4,2,2,1).getDisplayValues();
+  console.log("getTargetTime関数実行中：valuesの値")
+  console.log(values);
 
   return ({
     start:{
@@ -109,7 +112,7 @@ function getCalendarEvents(calendarId: string, startDay: Date, endDay: Date) {
     endUNIX: event.getEndTime().getTime()/1000
   }))
 }
-type calendarListTaple = Array<[string, string, number, string, number]>
+type calendarListTaple = [string, string, number, string, number][]
 // カレンダーリストを配列形式で返す：タイトル・開始/終了・Index・時刻・UNIX時刻
 function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): calendarListTaple {
   const firstUNIX: number = Date.parse(startDay.toString())/1000;
@@ -130,7 +133,7 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): cal
     .replace("Fri", "金")
     .replace("Sat", "土")
     .replace("Sun", "日");
-  const scheduleLists: calendarListTaple = [[
+  const scheduleLists: [string, string, number, string, number][] = [[
     "取得開始", 
     "開始", 
     9999,
@@ -173,19 +176,19 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): cal
 }
 // 次のイベントとの差時間をみて空き時間を計算する
 function calcEventDiff(calendarId, startDay, endDay){
-  const freeTimeSlots = [];
-  const data = oneCalendarLists(calendarId, startDay, endDay);
+  const freeTimeSlots: [string, string, string][] = [];
+  const data = oneCalendarLists(calendarId, startDay, endDay);  //[タイトル：string, 開始or終了：string, Index:number, 日付情報：string, UnixTime：number]
 
   for( let i = 0; i < data.length; i++){
     // イベントタイトルが取得開始だったとき、次の予定の時刻と差分を計算
     if(data[i][0] === "取得開始"){
-      const diff = data[i+1][3] - data[i][3]; //UNIXTIMEの差分
+      const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
       if(diff !== 0){
-        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3]])
+        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3]])  //[カレンダー名, 仮空き時間の開始日時, 仮空き時間の終了日時]
       }
     } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && data[i+1][2] - data[i][2] === 1){
     // イベント種別が終了、次のイベント種別が開始だった時に時刻の差分を計算
-      const diff = data[i+1][3] - data[i][3]; //UNIXTIMEの差分
+      const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
       if(diff !== 0){
         freeTimeSlots.push([calendarId, data[i][3], data[i+1][3]])
       }
