@@ -28,7 +28,7 @@ function getCalendarIds(): {} {
     CalID: PropertiesService.getScriptProperties().getProperty(key)
   }))
 
-  console.log(`getCalendarIds関すによって取得されたID：${targetCalendars}`)
+  console.log(`getCalendarIds関数を実行。取得されたID：${targetCalendars}`)
   return targetCalendars;
 } 
 
@@ -109,8 +109,9 @@ function getCalendarEvents(calendarId: string, startDay: Date, endDay: Date) {
     endUNIX: event.getEndTime().getTime()/1000
   }))
 }
+type calendarListTaple = Array<[string, string, number, string, number]>
 // カレンダーリストを配列形式で返す：タイトル・開始/終了・Index・時刻・UNIX時刻
-function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date) {
+function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): calendarListTaple {
   const firstUNIX: number = Date.parse(startDay.toString())/1000;
   const lastUNIX: number = Date.parse(endDay.toString())/1000;
   const startDayString = Utilities.formatDate(startDay, "JST", "MM/dd(E) HH:mm")
@@ -129,12 +130,13 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date) {
     .replace("Fri", "金")
     .replace("Sat", "土")
     .replace("Sun", "日");
-  const scheduleLists = [[
+  const scheduleLists: calendarListTaple = [[
     "取得開始", 
     "開始", 
     9999,
     startDayString,
-    firstUNIX]];
+    firstUNIX
+  ]];
   const events = getCalendarEvents(calendarId, startDay, endDay)
 
   // カレンダー一つに対してイベントを一個ずつチェック
