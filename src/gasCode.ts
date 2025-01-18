@@ -18,19 +18,23 @@ function testCode(){
   // console.log(getCalendarEvents(calendar, startDay, endDay));
   // console.log(oneCalendarLists(calendar, dayOfStart, dayOfEnd))
   // console.log("あきわくかくにん");
-  console.log(calcEventDiff(calendar, dayOfStart, dayOfEnd))
+  // console.log(calcEventDiff(calendar, dayOfStart, dayOfEnd))
+  console.log(multiCalcEventDiff(calendars, dayOfStart, dayOfEnd))
 
 }
 
 // カレンダーのプロパティ名とIDを返す
-function getCalendarIds(): {} {
+function getCalendarIds(): Array<{Key: string, CalID: string}> {
   const keys = PropertiesService.getScriptProperties().getKeys();
-  const targetCalendars = keys?.map((key) => ({
-    Key: key,
-    CalID: PropertiesService.getScriptProperties().getProperty(key)
-  }))
+  const targetCalendars = keys?.map((key) => {
+    const calId = PropertiesService.getScriptProperties().getProperty(key);
+    if (!calId) throw new Error(`Calendar ID not found for key: ${key}`);
+    return {
+      Key: key,
+      CalID: calId
+    };
+  });
 
-  console.log(`getCalendarIds関数を実行。取得されたID：${targetCalendars.map((item) => item.CalID)}`)
   return targetCalendars;
 } 
 
@@ -70,13 +74,15 @@ interface CustomDate {
     raw: Date,
     year: number,
     month: number,
-    day: number
+    day: number,
+    unix: number,
   },
   endDate: {
     raw: Date,
     year: number,
     month: number,
-    day: number
+    day: number,
+    unix: number,
   }
 }
 
@@ -91,12 +97,14 @@ function getTargetDate(): CustomDate | null{
         year: new Date(values[0][0]).getFullYear(),
         month: new Date(values[0][0]).getMonth(),
         day: new Date(values[0][0]).getDate(),
+        unix: Date.parse(values[0][0])/1000,
       },
       endDate: {
         raw: values[1][0],
         year: new Date(values[1][0]).getFullYear(),
         month : new Date(values[1][0]).getMonth(),
         day: new Date(values[1][0]).getDate(),
+        unix: Date.parse(values[1][0])/1000
       }
     })
   }
@@ -184,7 +192,7 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): cal
 
 // 次のイベントとの差時間をみて空き時間を計算する
 function calcEventDiff(calendarId, startDay, endDay){
-  const freeTimeSlots: [string, string, string][] = [];
+  const freeTimeSlots: [calendarid:string, slotStartTime: string, slotEndTime: string, slotStartUNIXTime:number, slotDiff: number][] = [];
   const data = oneCalendarLists(calendarId, startDay, endDay);  //[タイトル：string, 開始or終了：string, Index:number, 日付情報：string, UnixTime：number]
   console.log("oneCalendarLists関数の実行結果")
   console.log(data);
@@ -194,13 +202,13 @@ function calcEventDiff(calendarId, startDay, endDay){
     if(data[i][0] === "取得開始"){
       const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
       if(diff !== 0){
-        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3]])  //[カレンダー名, 仮空き時間の開始日時, 仮空き時間の終了日時]
+        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3], data[i][4], data[i+1][4]-data[i][4]])  
       }
-    } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && (data[i+1][2] - data[i][2] === 1 && data[i+3][2] > data[i+2][2])){
+    } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && data[i+1][2] - data[i][2] === 1 && data[i+2][2] >= data[i+1][2]){
     // イベント種別が終了、次のイベント種別が開始だった時に時刻の差分を計算
       const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
       if(diff !== 0){
-        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3]])
+        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3], data[i][4], data[i+1][4]-data[i][4]])
       }
       continue;
     }
@@ -209,6 +217,57 @@ function calcEventDiff(calendarId, startDay, endDay){
   return freeTimeSlots;
 }
 // 複数カレンダーで空き時間をチェック
-function multiCalcEventDiff(){
-  
+function multiCalcEventDiff(
+  calendars: Array<{Key: string, CalID: string}>, 
+  startDay: Date, 
+  endDay: Date
+): [calendarId: string, freeStart: string, freeEnd: string, freeStartUnix: number, diffUnix: number, index: number][] {
+  const slots: [string, string, string, number, number, number][] = [];
+  for (let i = 0; i < calendars.length; i++){
+    const calId = calendars[i].CalID;
+    const data = calcEventDiff(calId, startDay, endDay);
+    slots.push(...data.map(slot => [...slot, i] as [string, string, string, number, number, number]));
+  };
+  const modifiedSlots = slots.sort((a,b) => {return (a[3] as number) - (b[3] as number)});
+
+  // 開始日時ごとにグループ化し、最小の差分を持つものだけを残す
+  const startTimeFilterdSlots = Object.values(
+    modifiedSlots.reduce((acc: { [key: string]: [string, string, string, number, number, number] }, slot) => {
+      const [calendarId, startTime, endTime, unixStart, timeDiff, indexNumber] = slot;
+      // console.log(`Slot: ${slot}`)
+      if (!acc[startTime] || acc[startTime][4] >= timeDiff) {
+        acc[startTime] = slot;
+      }
+      return acc;
+    }, {})
+  );
+  const endTimeFilterdSlots = Object.values(
+    startTimeFilterdSlots.reduce((acc: {[key: string]: [string, string, string, number, number, number]}, slot) => {
+      const [calendarId, startTime, endTime, unixStart, timeDiff, indexNumber] = slot;
+      // console.log(`Slot: ${slot}`)
+      if (!acc[endTime] || acc[endTime][4] > timeDiff) {
+        acc[endTime] = slot;
+      }
+      return acc;
+    }, {})
+  );
+
+  return endTimeFilterdSlots;
+}
+
+
+// 日付分複数カレンダーの空き枠を確認する関数
+function allDayFreeSlots(){
+  // 実施するのは開始日と終了日の差分
+  const dateDiff = (_endDay.unix - _startDay.unix) / (60 * 60 * 24);
+  const allDaySlots: [string, string, string, number, number, number][][] = [];
+  for (let i = 0; i < dateDiff; i++){
+    const targetDay = _startDay.day + i
+    const start = new Date(_startDay.year, _startDay.month, targetDay, parseInt(_startTime._hour), parseInt(_startTime._minute));
+    const end = new Date(_startDay.year, _startDay.month, targetDay, parseInt(_startTime._hour), parseInt(_startTime._minute));
+    const oneDaySlots = multiCalcEventDiff(calendars, start, end);  //単一日時での取得
+    allDaySlots.push(oneDaySlots);
+  }
+
+  console.log(allDaySlots)
 }
