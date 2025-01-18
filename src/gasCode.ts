@@ -152,7 +152,7 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): [ti
   const scheduleLists: [string, string, number, string, number][] = [
     [
     "取得開始", 
-    "開始", 
+    "終了", 
     9999,
     startDayString,
     firstUNIX
@@ -189,7 +189,7 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): [ti
     }
 
   // イベントをUNIXタイムごとに並べ替えたうえで、最後に取得終了の配列データを加える
-  scheduleLists.sort((a,b) => {return (a[4] as number) - (b[4] as number)}).push(["取得終了", "", 9999, endDayString, lastUNIX]);
+  scheduleLists.sort((a,b) => {return (a[4] as number) - (b[4] as number)}).push(["取得終了", "開始", 9999, endDayString, lastUNIX]);
   return scheduleLists
 }
 
@@ -225,7 +225,7 @@ function multiCalendarEventDiff(
   calendars: Array<{Key: string, CalID: string}>, 
   startDay: Date, 
   endDay: Date
-): [calendarId: string, freeStart: string, freeEnd: string, freeStartUnix: number, diffUnix: number, index: number][] {
+){
 
   const slots: [title: string, type: string, eventIndex: number, dateInfo: string, unixTime: number, calendarIndex:number][] = [];
   for (let i = 0; i < calendars.length; i++){
@@ -238,39 +238,56 @@ function multiCalendarEventDiff(
   };
   // return
   const modifiedSlots = slots.sort((a,b) => {return (a[4] as number) - (b[4] as number)});
+  console.log("modifiedSlots")
   console.log(modifiedSlots)
-
-  const uniqueData = Array.from(
+  const uniqueData: [title: string, type: string, eventIndex: number, dateInfo: string, unixTime: number, calendarIndex:number][] = Array.from(
     modifiedSlots.reduce((map, item) => {
       const key = `${item[0]}_${item[1]}`;
       map.set(key, item);
       return map;
     }, new Map()).values()
-  );
-  // 開始日時ごとにグループ化し、最小の差分を持つものだけを残す
-  // const startTimeFilterdSlots = Object.values(
-  //   modifiedSlots.reduce((acc: { [key: string]: [string, string, number, string, number, number] }, slot, index) => {
-  //     const [title, type, eventIndex, dateInfo, unixTime, calendarIndex] = slot;
-  //     // console.log(`Slot: ${slot}`)
-  //     if (!acc[unixTime] || acc[unixTime][index][4] >= [unixTime][index+1][4]) {
-  //       acc[unixTime] = slot;
-  //     }
-  //     return acc;
-  //   }, {})
-  // );
-  // const endTimeFilterdSlots = Object.values(
-  //   startTimeFilterdSlots.reduce((acc: {[key: string]: [string, string, string, number, number, number]}, slot) => {
-  //     const [calendarId, startTime, endTime, unixStart, timeDiff, indexNumber] = slot;
-  //     // console.log(`Slot: ${slot}`)
-  //     if (!acc[endTime] || acc[endTime][4] > timeDiff) {
-  //       acc[endTime] = slot;
-  //     }
-  //     return acc;
-  //   }, {})
-  // );
+  ).sort((a,b) => a[4] - b[4]);
 
-  // return endTimeFilterdSlots;
-  return uniqueData;
+  let startCount = 1;
+  let endCount = 1;
+
+  const updateUniqueData: [string, string, number, string, number, number, number][] = uniqueData.map( (row) => {
+    if(row[1] === "開始"){
+      startCount++;
+      return[...row, startCount] as [string, string, number, string, number, number, number];
+    } else if(row[1] === "終了"){
+      endCount ++;
+      return[...row, endCount] as [string, string, number, string, number, number, number];
+    } else {
+      return[...row, 0] as [string, string, number, string, number, number, number];
+    }
+  })
+  
+
+  if(!updateUniqueData || updateUniqueData.length === 0) return;
+  console.log("updateUniqueData");
+  console.log(updateUniqueData);
+  
+  const gap: [slotstartdate: string, slotenddate: string, diff: number][] = [];
+  for( let i = 0; i < uniqueData.length - 1; i++){
+    const currentType = updateUniqueData[i][1];
+    const nextType = updateUniqueData[i+1][1];
+    const slotStart = updateUniqueData[i][3];
+    const slotEnd = updateUniqueData[i+1][3];
+    const currentEnd = updateUniqueData[i][4];
+    const nextStart = updateUniqueData[i+1][4];
+    const diff = nextStart - currentEnd; //UNIXTIMEの差分
+
+    // イベントタイトルが取得開始だったとき、次の予定の時刻と差分を計算
+    if(uniqueData[i][0] === "取得開始"){
+        gap.push([slotStart, slotEnd, diff/(60 * 60)])
+        continue;
+    } 
+    if(currentType === '終了' && nextType === '開始' && currentEnd < nextStart && updateUniqueData[i][6] === updateUniqueData[i+1][6]) {
+        gap.push([slotStart, slotEnd, diff/(60 *60)]);
+    }
+  }
+  return gap;
 }
 
 
