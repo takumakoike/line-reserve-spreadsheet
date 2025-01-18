@@ -19,7 +19,10 @@ function testCode(){
   // console.log(oneCalendarLists(calendar, dayOfStart, dayOfEnd))
   // console.log("あきわくかくにん");
   // console.log(calcEventDiff(calendar, dayOfStart, dayOfEnd))
-  console.log(multiCalcEventDiff(calendars, dayOfStart, dayOfEnd))
+  console.log(multiCalendarEventDiff(calendars, dayOfStart, dayOfEnd))
+  // calendars.forEach( (calendar) => {
+  //   console.log(allDayFreeSlots([calendar]))
+  // })
 
 }
 
@@ -126,10 +129,8 @@ function getCalendarEvents(calendarId: string, startDay: Date, endDay: Date) {
 }
 
 
-type calendarListTaple = [string, string, number, string, number][]
-
 // カレンダーリストを配列形式で返す：タイトル・開始/終了・Index・時刻・UNIX時刻
-function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): calendarListTaple {
+function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): [title: string, type: string, eventIndex: number, dateInfo: string, unixTime:number][] {
   const firstUNIX: number = Date.parse(startDay.toString())/1000;
   const lastUNIX: number = Date.parse(endDay.toString())/1000;
   const startDayString = Utilities.formatDate(startDay, "JST", "MM/dd(E) HH:mm")
@@ -148,13 +149,15 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): cal
     .replace("Fri", "金")
     .replace("Sat", "土")
     .replace("Sun", "日");
-  const scheduleLists: [string, string, number, string, number][] = [[
+  const scheduleLists: [string, string, number, string, number][] = [
+    [
     "取得開始", 
-    "開始", 
+    "終了", 
     9999,
     startDayString,
     firstUNIX
-  ]];
+    ]
+  ];
   const events = getCalendarEvents(calendarId, startDay, endDay)
 
   // カレンダー一つに対してイベントを一個ずつチェック
@@ -181,93 +184,128 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): cal
       const endDayInfo: string = events[i].endUNIX > lastUNIX ? endDayString : eventEnd;
       const endDayUNIX: number = events[i].endUNIX >= lastUNIX ? lastUNIX :events[i].endUNIX;
 
-      scheduleLists.push([events[i].title, `開始`, i , startDayInfo, startDayUNIX])
-      scheduleLists.push([events[i].title,`終了`, i, endDayInfo, endDayUNIX])
+      scheduleLists.push([events[i].title, `開始`, i , startDayInfo, startDayUNIX],[events[i].title,`終了`, i, endDayInfo, endDayUNIX])
+      // scheduleLists.push()
     }
 
   // イベントをUNIXタイムごとに並べ替えたうえで、最後に取得終了の配列データを加える
-  scheduleLists.sort((a,b) => {return (a[4] as number) - (b[4] as number)}).push(["取得終了", "", 9999, endDayString, lastUNIX]);
+  scheduleLists.sort((a,b) => {return (a[4] as number) - (b[4] as number)}).push(["取得終了", "開始", 9999, endDayString, lastUNIX]);
   return scheduleLists
 }
 
 // 次のイベントとの差時間をみて空き時間を計算する
-function calcEventDiff(calendarId, startDay, endDay){
-  const freeTimeSlots: [calendarid:string, slotStartTime: string, slotEndTime: string, slotStartUNIXTime:number, slotDiff: number][] = [];
-  const data = oneCalendarLists(calendarId, startDay, endDay);  //[タイトル：string, 開始or終了：string, Index:number, 日付情報：string, UnixTime：number]
-  console.log("oneCalendarLists関数の実行結果")
-  console.log(data);
+// function calcEventDiff(calendarId, startDay, endDay){
+//   const freeTimeSlots: [calendarid:string, slotStartTime: string, slotEndTime: string, slotStartUNIXTime:number, slotDiff: number][] = [];
+//   const data = oneCalendarLists(calendarId, startDay, endDay);  //[タイトル：string, 開始or終了：string, Index:number, 日付情報：string, UnixTime：number]
+//   console.log("calcEventDiff関数実行中、oneCalendarLists関数の実行結果")
+//   console.log(data);
 
-  for( let i = 0; i < data.length; i++){
-    // イベントタイトルが取得開始だったとき、次の予定の時刻と差分を計算
-    if(data[i][0] === "取得開始"){
-      const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
-      if(diff !== 0){
-        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3], data[i][4], data[i+1][4]-data[i][4]])  
-      }
-    } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && data[i+1][2] - data[i][2] === 1 && data[i+2][2] >= data[i+1][2]){
-    // イベント種別が終了、次のイベント種別が開始だった時に時刻の差分を計算
-      const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
-      if(diff !== 0){
-        freeTimeSlots.push([calendarId, data[i][3], data[i+1][3], data[i][4], data[i+1][4]-data[i][4]])
-      }
-      continue;
-    }
-  }
-  // console.log(freeTimeSlots);
-  return freeTimeSlots;
-}
+//   for( let i = 0; i < data.length; i++){
+//     if(data.length === 0) return;
+//     // イベントタイトルが取得開始だったとき、次の予定の時刻と差分を計算
+//     if(data[i][0] === "取得開始"){
+//       const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
+//       if(diff !== 0){
+//         freeTimeSlots.push([calendarId, data[i][3], data[i+1][3], data[i][4], data[i+1][4]-data[i][4]])  
+//       }
+//     } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && data[i+1][2] - data[i][2] === 1 && data[i+2][2] >= data[i+1][2]){
+//     // イベント種別が終了、次のイベント種別が開始だった時に時刻の差分を計算
+//       const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
+//       if(diff !== 0){
+//         freeTimeSlots.push([calendarId, data[i][3], data[i+1][3], data[i][4], data[i+1][4]-data[i][4]])
+//       }
+//       continue;
+//     }
+//   }
+//   // console.log(freeTimeSlots);
+//   return freeTimeSlots;
+// }
 // 複数カレンダーで空き時間をチェック
-function multiCalcEventDiff(
+function multiCalendarEventDiff(
   calendars: Array<{Key: string, CalID: string}>, 
   startDay: Date, 
   endDay: Date
-): [calendarId: string, freeStart: string, freeEnd: string, freeStartUnix: number, diffUnix: number, index: number][] {
-  const slots: [string, string, string, number, number, number][] = [];
+){
+
+  const slots: [title: string, type: string, eventIndex: number, dateInfo: string, unixTime: number, calendarIndex:number][] = [];
   for (let i = 0; i < calendars.length; i++){
     const calId = calendars[i].CalID;
-    const data = calcEventDiff(calId, startDay, endDay);
-    slots.push(...data.map(slot => [...slot, i] as [string, string, string, number, number, number]));
+    const data = oneCalendarLists(calId, startDay, endDay);
+    console.log("multiCalc関数実行中、oneCalendarListの結果です");
+    console.log(data);
+    // const data = calcEventDiff(calId, startDay, endDay);
+    slots.push(...data.map(slot => [...slot, i] as [title: string, type: string, eventIndex: number, dateInfo: string, unixTime: number, calendarIndex: number]));
   };
-  const modifiedSlots = slots.sort((a,b) => {return (a[3] as number) - (b[3] as number)});
+  // return
+  const modifiedSlots = slots.sort((a,b) => {return (a[4] as number) - (b[4] as number)});
+  console.log("modifiedSlots")
+  console.log(modifiedSlots)
+  const uniqueData: [title: string, type: string, eventIndex: number, dateInfo: string, unixTime: number, calendarIndex:number][] = Array.from(
+    modifiedSlots.reduce((map, item) => {
+      const key = `${item[0]}_${item[1]}`;
+      map.set(key, item);
+      return map;
+    }, new Map()).values()
+  ).sort((a,b) => a[4] - b[4]);
 
-  // 開始日時ごとにグループ化し、最小の差分を持つものだけを残す
-  const startTimeFilterdSlots = Object.values(
-    modifiedSlots.reduce((acc: { [key: string]: [string, string, string, number, number, number] }, slot) => {
-      const [calendarId, startTime, endTime, unixStart, timeDiff, indexNumber] = slot;
-      // console.log(`Slot: ${slot}`)
-      if (!acc[startTime] || acc[startTime][4] >= timeDiff) {
-        acc[startTime] = slot;
-      }
-      return acc;
-    }, {})
-  );
-  const endTimeFilterdSlots = Object.values(
-    startTimeFilterdSlots.reduce((acc: {[key: string]: [string, string, string, number, number, number]}, slot) => {
-      const [calendarId, startTime, endTime, unixStart, timeDiff, indexNumber] = slot;
-      // console.log(`Slot: ${slot}`)
-      if (!acc[endTime] || acc[endTime][4] > timeDiff) {
-        acc[endTime] = slot;
-      }
-      return acc;
-    }, {})
-  );
+  let startCount = 1;
+  let endCount = 1;
 
-  return endTimeFilterdSlots;
-}
+  const updateUniqueData: [string, string, number, string, number, number, number][] = uniqueData.map( (row) => {
+    if(row[1] === "開始"){
+      startCount++;
+      return[...row, startCount] as [string, string, number, string, number, number, number];
+    } else if(row[1] === "終了"){
+      endCount ++;
+      return[...row, endCount] as [string, string, number, string, number, number, number];
+    } else {
+      return[...row, 0] as [string, string, number, string, number, number, number];
+    }
+  })
+  
 
+  if(!updateUniqueData || updateUniqueData.length === 0) return;
+  console.log("updateUniqueData");
+  console.log(updateUniqueData);
+  
+  const gap: [slotstartdate: string, slotenddate: string, diff: number][] = [];
+  for( let i = 0; i < uniqueData.length - 1; i++){
+    const currentType = updateUniqueData[i][1];
+    const nextType = updateUniqueData[i+1][1];
+    const slotStart = updateUniqueData[i][3];
+    const slotEnd = updateUniqueData[i+1][3];
+    const currentEnd = updateUniqueData[i][4];
+    const nextStart = updateUniqueData[i+1][4];
+    const diff = nextStart - currentEnd; //UNIXTIMEの差分
 
-// 日付分複数カレンダーの空き枠を確認する関数
-function allDayFreeSlots(){
-  // 実施するのは開始日と終了日の差分
-  const dateDiff = (_endDay.unix - _startDay.unix) / (60 * 60 * 24);
-  const allDaySlots: [string, string, string, number, number, number][][] = [];
-  for (let i = 0; i < dateDiff; i++){
-    const targetDay = _startDay.day + i
-    const start = new Date(_startDay.year, _startDay.month, targetDay, parseInt(_startTime._hour), parseInt(_startTime._minute));
-    const end = new Date(_startDay.year, _startDay.month, targetDay, parseInt(_startTime._hour), parseInt(_startTime._minute));
-    const oneDaySlots = multiCalcEventDiff(calendars, start, end);  //単一日時での取得
-    allDaySlots.push(oneDaySlots);
+    // イベントタイトルが取得開始だったとき、次の予定の時刻と差分を計算
+    if(uniqueData[i][0] === "取得開始"){
+        gap.push([slotStart, slotEnd, diff/(60 * 60)])
+        continue;
+    } 
+    if(currentType === '終了' && nextType === '開始' && currentEnd < nextStart && updateUniqueData[i][6] === updateUniqueData[i+1][6]) {
+        gap.push([slotStart, slotEnd, diff/(60 *60)]);
+    }
   }
-
-  console.log(allDaySlots)
+  return gap;
 }
+
+
+// // 日付分複数カレンダーの空き枠を確認する関数
+// function allDayFreeSlots(calendarArray: Array<{Key: string, CalID: string}>){
+//   // 実施するのは開始日と終了日の差分
+//   const dateDiff = (_endDay.unix - _startDay.unix) / (60 * 60 * 24);
+//   const allDaySlots: [string, string, string, number, number, number][][] = [];
+//   for (let i = 0; i <= dateDiff; i++){
+//     const targetDay = _startDay.day + i
+//     const start = new Date(_startDay.year, _startDay.month, targetDay, parseInt(_startTime._hour), parseInt(_startTime._minute));
+//     const end = new Date(_startDay.year, _startDay.month, targetDay, parseInt(_startTime._hour), parseInt(_startTime._minute));
+//     console.log(`start: ${start}`);
+//     console.log(`calendars: ${calendarArray[0]}`)
+//     const oneDaySlots = multiCalendarEventDiff(calendarArray[i], start, end);  //単一日時での取得
+//     allDaySlots.push(oneDaySlots);
+//   }
+
+//   // console.log(allDaySlots)
+//   return allDaySlots;
+// }
