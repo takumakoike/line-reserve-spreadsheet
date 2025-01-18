@@ -2,6 +2,7 @@
 const calendars = getCalendarIds();
 const calendar = calendars[2].CalID;
 const _startDay = getTargetDate()!.startDate;
+const _endDay = getTargetDate()!.endDate;
 const _startTime = getTargetTime()!.start;
 const _endTime = getTargetTime()!.end;
 const dayOfStart = new Date(_startDay.year, _startDay.month, _startDay.day, parseInt(_startTime._hour), parseInt(_startTime._minute));
@@ -9,10 +10,10 @@ const dayOfEnd = new Date(_startDay.year, _startDay.month, _startDay.day, parseI
 
 
 function testCode(){
-  console.log(getTargetDate())
-  console.log(getTargetTime())
-  console.log(dayOfStart);
-  console.log(dayOfEnd)
+  // console.log(getTargetDate())
+  // console.log(getTargetTime())
+  // console.log(dayOfStart);
+  // console.log(dayOfEnd)
   // console.log(`ID: ${calendar}の予定を取得`);
   // console.log(getCalendarEvents(calendar, startDay, endDay));
   // console.log(oneCalendarLists(calendar, dayOfStart, dayOfEnd))
@@ -46,7 +47,7 @@ interface CustomTime{
   }
 }
 function getTargetTime(): CustomTime{
-  const values = SpreadsheetApp.getActiveSheet().getRange(4,2,2,1).getDisplayValues();
+  const values = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("空き枠")!.getRange(4,2,2,1).getDisplayValues();
   console.log("getTargetTime関数実行中：valuesの値")
   console.log(values);
 
@@ -78,21 +79,24 @@ interface CustomDate {
     day: number
   }
 }
+
 function getTargetDate(): CustomDate | null{
-  const values: Array<Date | any> = SpreadsheetApp.getActiveSheet().getRange(1,2,2,1).getValues();
+  const values = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("空き枠")!.getRange(1,2,2,1).getValues();
+  console.log("getTargetDate関数実行中：valuesの値")
+  console.log(values);
   if(values && values.length > 0) {
     return ({
       startDate: {
-        raw: values[0],
-        year: new Date(values[0]).getFullYear(),
-        month: new Date(values[0]).getMonth(),
-        day: new Date(values[0]).getDate(),
+        raw: values[0][0],
+        year: new Date(values[0][0]).getFullYear(),
+        month: new Date(values[0][0]).getMonth(),
+        day: new Date(values[0][0]).getDate(),
       },
       endDate: {
-        raw: values[1],
-        year: new Date(values[1]).getFullYear(),
-        month : new Date(values[1]).getMonth(),
-        day: new Date(values[1]).getDate(),
+        raw: values[1][0],
+        year: new Date(values[1][0]).getFullYear(),
+        month : new Date(values[1][0]).getMonth(),
+        day: new Date(values[1][0]).getDate(),
       }
     })
   }
@@ -112,7 +116,10 @@ function getCalendarEvents(calendarId: string, startDay: Date, endDay: Date) {
     endUNIX: event.getEndTime().getTime()/1000
   }))
 }
+
+
 type calendarListTaple = [string, string, number, string, number][]
+
 // カレンダーリストを配列形式で返す：タイトル・開始/終了・Index・時刻・UNIX時刻
 function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): calendarListTaple {
   const firstUNIX: number = Date.parse(startDay.toString())/1000;
@@ -174,10 +181,13 @@ function oneCalendarLists(calendarId: string, startDay: Date, endDay: Date): cal
   scheduleLists.sort((a,b) => {return (a[4] as number) - (b[4] as number)}).push(["取得終了", "", 9999, endDayString, lastUNIX]);
   return scheduleLists
 }
+
 // 次のイベントとの差時間をみて空き時間を計算する
 function calcEventDiff(calendarId, startDay, endDay){
   const freeTimeSlots: [string, string, string][] = [];
   const data = oneCalendarLists(calendarId, startDay, endDay);  //[タイトル：string, 開始or終了：string, Index:number, 日付情報：string, UnixTime：number]
+  console.log("oneCalendarLists関数の実行結果")
+  console.log(data);
 
   for( let i = 0; i < data.length; i++){
     // イベントタイトルが取得開始だったとき、次の予定の時刻と差分を計算
@@ -186,7 +196,7 @@ function calcEventDiff(calendarId, startDay, endDay){
       if(diff !== 0){
         freeTimeSlots.push([calendarId, data[i][3], data[i+1][3]])  //[カレンダー名, 仮空き時間の開始日時, 仮空き時間の終了日時]
       }
-    } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && data[i+1][2] - data[i][2] === 1){
+    } else if((data[i][1] === `終了` && data[i+1][1] === `開始`) && (data[i+1][2] - data[i][2] === 1 && data[i+3][2] > data[i+2][2])){
     // イベント種別が終了、次のイベント種別が開始だった時に時刻の差分を計算
       const diff = data[i+1][4] - data[i][4]; //UNIXTIMEの差分
       if(diff !== 0){
