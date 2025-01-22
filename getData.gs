@@ -22,3 +22,42 @@ function codeEdit(){
   }
 
 }
+
+
+
+
+function getTimeData(){
+  const baseSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(baseSheetName);
+  const shopStart = {
+    hours: baseSheet.getRange(5,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(5,6).getValue()),
+  };
+  const shopEnd = {
+    hours: baseSheet.getRange(6,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(6,6).getValue()),
+  }
+  const breakStart = {
+    hours: baseSheet.getRange(7,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(7,6).getValue()),
+  };
+  const breakEnd = {
+    hours: baseSheet.getRange(8,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(8,6).getValue()),
+  }
+  const reserveStart = {
+    hours: baseSheet.getRange(9,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(9,6).getValue()),
+  };
+  const reserveEnd = {
+    hours: baseSheet.getRange(10,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(10,6).getValue()),
+  }
+
+
+  console.log(shopStart)
+  console.log(shopEnd)
+  console.log(breakStart)
+  console.log(breakEnd)
+  console.log(reserveStart)
+  console.log(reserveEnd)
+}
