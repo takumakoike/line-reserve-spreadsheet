@@ -73,20 +73,36 @@ function getTimeData(): {} {
 
 
 function fillTimeSlots() {
+  const listSheetName = "7日間予定";
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getActiveSheet();
+  const sheet = ss.getSheetByName(listSheetName);
+  if(!sheet) return new Error (`${listSheetName}のシートが見つかりませんでした`);
 
-  // 時間の開始セルと間隔のセル
-  const startTimeCell = sheet.getRange("A1").getValue();  // 例: "11:00"（文字列）
-  const intervalCell = sheet.getRange("B1").getValue();   // 例: 30（数値）
+  // 営業開始時間、営業終了時間、予約枠間隔
+  const startTimeCell: string = sheet.getRange("G1").getValue();  // 例: "11:00"（文字列）
+  const endTimeCell: string = sheet.getRange("I1").getValue();
+  const intervalCell: number = sheet.getRange("K1").getValue();   // 例: 30（数値）
 
-  // "hh:mm" の文字列を Date オブジェクトに変換する
-  const timeParts = startTimeCell.split(":");  
-  let hours = parseInt(timeParts[0]);
-  let minutes = parseInt(timeParts[1]);
+  // 開始時間について"hh:mm" の文字列を Date オブジェクトに変換する
+  const startTimeParts: string[] = startTimeCell.split(":");  
+  let startHours = parseInt(startTimeParts[0]);
+  let startMinutes = parseInt(startTimeParts[1]);
+  const startInfo = Utilities.formatDate( new Date(2025, 0, 1, startHours, startMinutes), "GMT", "dd MMM yyyy HH:mm:ss z");
+  const startTimeUnix = Date.parse(startInfo)/1000;
+  
+  // 終了時間について"hh:mm" の文字列を Date オブジェクトに変換する
+  const endTimeParts: string[] = endTimeCell.split(":");  
+  let endHours = parseInt(endTimeParts[0]);
+  let endMinutes = parseInt(endTimeParts[1]);
+  const endInfo = Utilities.formatDate( new Date(2025, 0, 1, endHours, endMinutes), "GMT", "dd MMM yyyy HH:mm:ss z")
+  const endTimeUnix = Date.parse(endInfo)/1000;
 
-  // 30分間隔で 10 回分の時間を記入する
-  for (let i = 0; i < 10; i++) {
+  // 営業時間を分単位で計算
+  const diff = (endTimeUnix - startTimeUnix ) / 60;
+  console.log(diff);
+  
+  const steps = diff / intervalCell;
+  for (let i = 0; i < ; i++) {
     let totalMinutes = hours * 60 + minutes + (intervalCell * i);
     let newHours = Math.floor(totalMinutes / 60);
     let newMinutes = totalMinutes % 60;
@@ -94,7 +110,23 @@ function fillTimeSlots() {
     // 時刻を "hh:mm" 形式に整える（ゼロ埋め）
     let formattedTime = ('0' + newHours).slice(-2) + ":" + ('0' + newMinutes).slice(-2);
     
-    // 結果を A列に書き込む
-    sheet.getRange(i + 2, 1).setValue(formattedTime);
-  }
+
+//     // 開始位置（4行目からスタート、3行間隔で貼り付け）
+// let startRow = 4;  // 最初の貼り付け位置
+// let rowInterval = 3;  // 3行おき
+
+// // 配列の要素をスプレッドシートに書き込む
+// for (let i = 0; i < timeSlots.length; i++) {
+//   sheet.getRange(startRow + (i * rowInterval), 1).setValue(timeSlots[i]);
+// }
+
+
+
+
+
+//     // 結果を A列に書き込む
+//     sheet.getRange(i + 2, 1).setValue(formattedTime);
+//   }
 }
+
+
