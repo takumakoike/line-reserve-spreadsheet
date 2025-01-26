@@ -31,74 +31,122 @@ function doPost(e) {
         const replyToken = webhookEvents.events[0].replyToken;
         const receivedMessage = webhookEvents.events[0].message.text;
         const userId = webhookEvents.events[0].source.userId;  // ユーザーIDの取得
-        
+
+        // 予約データ
+        let dateData;
+        let timeData;
+        let reserveCount;
+        let reserveName;
+        let reserveTEL;
+
         const cache = CacheService.getScriptCache();
-        let userState = cache.get(userId);
+        cache.putAll({
+            // id: userId || "",
+            date: dateData || "",
+            time: timeData || "",
+            count: (reserveCount || 0).toString(),
+            name: reserveName || "",
+            tel: reserveTEL || "",
+        });
+        // let userState = cache.get("id");
+        let userCache = cache.getAll(["id", "date", "time", "count", "name", "tel"])
         
         const dateInfoObject = getDateobject()
         const dateInfoString = dateInfoObject.map((item) => `${item.num}：${item.date}`).join("\n");
 
-        // 予約データ
-        let dateData = "";
-        let timeData = "";
-        let reserveCount = null;
-        let reserveName = "";
-        let reserveTEL = null;
 
         // 初回メッセージ処理: "予約"を受け取った場合
-        if (receivedMessage === "予約" && !userState) {
+        if (receivedMessage === "予約" && !userCache.id) {
             const messageBody = [
                 {
                     "type": "text",
-                    "text": "予約を開始します。質問が全部で⚫︎個ありますのでお答えください。\nまずはじめに次の日付から希望日を1~8の数字で教えてください。\n"
+                    "text": `ご予約ですね、ご希望を承ります。\n\n質問が全部で⚫︎個ありますのでお答えください。${cache.get("label")}`
                 },
                 {
                     "type": "text",
-                    "text": dateInfoString
-                }
+                    "text": `①まずはじめに次の日付から希望日を1~8の数字で教えてください。\n${dateInfoString}`
+                },
             ];
-            replyToLine(replyToken, messageBody);
             
             // ユーザーの状態を"予約開始"にセット
-            cache.put(userId, "waiting_for_date", 300);  // 5分間保持
+            const startCacheValues = {
+                id: userId,
+                label: "waiting_for_time"
+            }
+            cache.putAll(startCacheValues, 60);  // 5分間保持
+            replyToLine(replyToken, messageBody);
+            return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
+        } 
+
+        // 状態が"waiting_for_time"のとき、時間の選択を待つ
+        if (userCache.get("label") === "waiting_for_time") {
+            if (receivedMessage.match(/^[1-8１-８]$/u)) {
+                dateData = dateInfoObject[parseInt(receivedMessage)-1].date //入力された値から日付データをCacheに保存
+
+                const timeOptionData = getTimeObject(dateData)
+                const timeOptionMessage: string[] = [];
+                timeOptionData.forEach((item) => {
+                    timeOptionMessage.push(`${item[0] + item[1]}　空席：${item[2]}席`)
+                }) 
+
+                replyToLine(replyToken, [
+                    { 
+                        "type": "text", 
+                        "text": `${dateData}ですね。空き時間を確認します。` 
+                    },
+                    { 
+                        "type": "text", 
+                        "text": `質問②\n空き時間を以下の数字からお選びください\n${timeOptionMessage.join("\n")}\n回答は半角数字でお答えください。`
+                    },
+                ]);
+                
+                // 次のステップのために状態を更新
+                const secondCacheValues = {
+                    date: dateData,
+                    time: timeOptionData,
+                    "label": "waiting_for_count"
+                }
+                cache.putAll(secondCacheValues, 60);
+            } else {
+                // 無効な入力を受け取った場合、最初からやり直し
+                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
+                cache.remove(userCache.id);
+            }
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
         }
 
-        // 状態が"waiting_for_date"のとき、日付の選択を待つ
-        if (userState === "waiting_for_date") {
-            if (receivedMessage.match(/^[1-8１-８]$/u)) {
-                dateData = dateInfoObject[parseInt(receivedMessage)-1].date
-                replyToLine(replyToken, [{ "type": "text", "text": `${dateData}ですね。空き時間を確認します。` }]);
+        // 状態がwaiting_for_countになったら人数の選択をさせる
+        if (userCache.label === "waiting_for_count"){
+            // 受け取った値の整理：時間をキャッシュに保存
+            if (receivedMessage.match(/^[0-9]{0,2}$/u)) {
+                const timeDataIndex = CacheService.getScriptCache().get("time")!;
+                timeData = timeDataIndex[parseInt(receivedMessage)-1]
+                replyToLine(replyToken, [
+                    { 
+                        "type": "text", 
+                        "text": `${timeData}のご希望ですね。\n続いてご予約の人数を教えてください。` 
+                    }
+                ]);
                 
                 // 次のステップのために状態を更新
-                cache.put(userId, "waiting_for_time", 300);
+                const thirdCacheValues = {
+                    id: userId,
+                    date: dateData,
+                    time: timeData,
+                    label: "waiting_for_name"
+                }
+                cache.putAll(thirdCacheValues, 300);
             } else {
                 // 無効な入力を受け取った場合、最初からやり直し
                 replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
                 cache.remove(userId);  // 状態リセット
             }
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
-        }
-
-        if (userState === "waiting_for_time"){
-            if (receivedMessage.match(/^[1-8１-８]$/u)) {
-                timeData = dateInfoObject[parseInt(receivedMessage)-1].date
-                replyToLine(replyToken, [{ "type": "text", "text": `${dateData}ですね。空き時間を確認します。` }]);
-                
-                // 次のステップのために状態を更新
-                cache.put(userId, "waiting_for_time", 300);
-            } else {
-                // 無効な入力を受け取った場合、最初からやり直し
-                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
-                cache.remove(userId);  // 状態リセット
-            }
-            return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
-        }
-
+        }  
 
         // 予約が完了していない場合、リセットメッセージを送信
-        replyToLine(replyToken, [{ "type": "text", "text": "『予約』と送信して予約を開始してください。" }]);
-        cache.remove(userId);
+        replyToLine(replyToken, [{ "type": "text", "text": `${userCache.id}\n『予約』と送信して予約を開始してください。` }]);
+        cache.remove(userCache.id);
 
         return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
 
@@ -133,60 +181,58 @@ function getDateobject(): {num: number, date: string}[] {
 }
 
 
-function getTimeObject(dateInfo: string): {time: string, slot: string}[] | Response{
-    dateInfo = "1月27日";
+function getTimeObject(dateInfo: string): {index: string, time: string, slot: number}[]{
+    // dateInfo = "1月27日";
+    // 該当日の予約可能数を用意
+    const targetDateAllSlots = getAllSlots(dateInfo);
+    let allFree: {index: string, time:string, slot: number}[] = [];
+    for( let i = 0; i < targetDateAllSlots.length; i ++){
+        allFree.push({index: `${i + 1}：`, time: targetDateAllSlots[i][0], slot: targetDateAllSlots[i][1]});
+    }
     
     // 予約状況の全データを確認
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const listSheet = ss.getSheetByName(listSheetName);
     const listSheetLastRow = listSheet?.getRange(1,1).getNextDataCell(SpreadsheetApp.Direction.DOWN).getRow();
-    if(!listSheetLastRow || listSheetLastRow === 0) return new Response("どの時間でも空いています")
+    if(!listSheetLastRow || listSheetLastRow === 0) return allFree;
     const listAllData = listSheet?.getRange(2,1,listSheetLastRow, 5).getDisplayValues();
 
-    // 該当日の予約可能数を用意
-    const baseSheet = ss.getSheetByName(baseSheetName);
-    const shopOpen = getTimeData() as{
-        shopStart: {hours: string, minutes: string},
-        shopEnd: {hours: string, minutes: string},
-    };
+    // 予約リストの中で、該当日に絞ったデータ
+    const filterdListData: [string, string, number, string, string][] = listAllData?.filter((item) => item[0].match(dateInfo)) as [string, string, number, string, string][];
+    console.log("filterdListData");
+    console.log(filterdListData);
 
+    let reservedCounts = {};
+    filterdListData.forEach( (reservation) => {
+        const time = reservation[1];
+        const reservedSeats = reservation[2].toString();
+        if(reservedCounts[time]){
+            reservedCounts[time] += parseInt(reservedSeats);
+        } else {
+            reservedCounts[time] = parseInt(reservedSeats)
+        }
+    });
 
+    // 時間ごとの空き枠slots
+    let slots: [time:string, seats: number][] = targetDateAllSlots.map((slot) => {
+        const time = slot[0];
+        const maxCapacity = slot[1];
 
-    let slots = baseSheet?.getRange(13,3).getValue() as number;
+        const bookedseats = reservedCounts[time] || 0;
+        const remainingSeats = maxCapacity - bookedseats;
+        return [time, remainingSeats]
+    })
 
-
-
-
-
-
-console.log(slots);
-const dateFilterdData: number[]= listAllData?.filter((item) => item[0].match(dateInfo)) ? listAllData?.filter((item) => item[0].match(dateInfo)): [];
-console.log(dateFilterdData);
-for( let i = 0; i < dateFilterdData?.length; i++){
-    console.log(dateFilterdData[i][2])
-
-    slots -= dateFilterdData[i][2]
+    let outputData: {index: string, time: string, slot: number}[]= [];
+    for( let i = 0; i < slots.length; i ++){
+        outputData.push({index: `${i + 1}：`, time: slots[i][0], slot: slots[i][1]});
+    }
+    return outputData
 }
-console.log(slots);
-
-
-
-    const timeObject: {time: string, slot: string}[] = [];
-
-    if(!timeObject || timeObject.length < 1) return new Response("この日に空き時間はありません。再度予約からやり直してください");
-
-    
-    return timeObject
-}
-
-
-
-
-
 
 // 任意の日付の予約可能数リストを返す
 function getAllSlots(dateInfo: string): [time: string, slots: number][] {
-    dateInfo = "1月27日"
+    // dateInfo = "1月27日"
     
     // 予約可能最大数を取得
     const ss = SpreadsheetApp.getActiveSpreadsheet();
