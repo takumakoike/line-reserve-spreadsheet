@@ -133,7 +133,7 @@ function getDateobject(): {num: number, date: string}[] {
 }
 
 
-function getTimeObject(dateInfo: string): {time: string, slot: string}[] | Response{
+function getTimeObject(dateInfo: string): [index: string, time: string, slot: number][] | Response{
     dateInfo = "1月27日";
     
     // 予約状況の全データを確認
@@ -144,45 +144,41 @@ function getTimeObject(dateInfo: string): {time: string, slot: string}[] | Respo
     const listAllData = listSheet?.getRange(2,1,listSheetLastRow, 5).getDisplayValues();
 
     // 該当日の予約可能数を用意
-    const baseSheet = ss.getSheetByName(baseSheetName);
-    const shopOpen = getTimeData() as{
-        shopStart: {hours: string, minutes: string},
-        shopEnd: {hours: string, minutes: string},
-    };
+    const targetDateAllSlots = getAllSlots(dateInfo);
+    // 予約リストの中で、該当日に絞ったデータ
+    const filterdListData: [string, string, number, string, string][] = listAllData?.filter((item) => item[0].match(dateInfo)) as [string, string, number, string, string][];
+    console.log("filterdListData");
+    console.log(filterdListData);
 
+    let reservedCounts = {};
+    filterdListData.forEach( (reservation) => {
+        const time = reservation[1];
+        const reservedSeats = reservation[2].toString();
+        if(reservedCounts[time]){
+            reservedCounts[time] += parseInt(reservedSeats);
+        } else {
+            reservedCounts[time] = parseInt(reservedSeats)
+        }
+    });
 
+    // 時間ごとの空き枠slots
+    let slots: [time:string, seats: number][] = targetDateAllSlots.map((slot) => {
+        const time = slot[0];
+        const maxCapacity = slot[1];
 
-    let slots = baseSheet?.getRange(13,3).getValue() as number;
+        const bookedseats = reservedCounts[time] || 0;
+        const remainingSeats = maxCapacity - bookedseats;
+        return [time, remainingSeats]
+    })
 
+    let outputData: [label: string, time: string, slot: number][]= [];
+    for( let i = 0; i < slots.length; i ++){
+        outputData.push([`${i + 1}：`, slots[i][0], slots[i][1]]);
+    }
 
-
-
-
-
-console.log(slots);
-const dateFilterdData: number[]= listAllData?.filter((item) => item[0].match(dateInfo)) ? listAllData?.filter((item) => item[0].match(dateInfo)): [];
-console.log(dateFilterdData);
-for( let i = 0; i < dateFilterdData?.length; i++){
-    console.log(dateFilterdData[i][2])
-
-    slots -= dateFilterdData[i][2]
+    if(!outputData || outputData.length < 1) return new Response("この日に空き時間はありません。再度予約からやり直してください");
+    return outputData
 }
-console.log(slots);
-
-
-
-    const timeObject: {time: string, slot: string}[] = [];
-
-    if(!timeObject || timeObject.length < 1) return new Response("この日に空き時間はありません。再度予約からやり直してください");
-
-    
-    return timeObject
-}
-
-
-
-
-
 
 // 任意の日付の予約可能数リストを返す
 function getAllSlots(dateInfo: string): [time: string, slots: number][] {
