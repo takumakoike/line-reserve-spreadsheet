@@ -1,5 +1,6 @@
 const baseSheetName = "店舗基本情報";
 const reserveBaseSheetName = "【原本】7日間予定";
+const listSheetName = "予約リスト";
 
 // スプレッドシートで時間（分）の値にゼロをつける関数
 function codeEdit(){
@@ -62,12 +63,12 @@ function getTimeData():
     minutes: parseInt(baseSheet.getRange(11,6).getValue()),
   }
 
-  console.log(shopStart)
-  console.log(shopEnd)
-  console.log(breakStart)
-  console.log(breakEnd)
-  console.log(reserveStart)
-  console.log(reserveEnd)
+  // console.log(shopStart)
+  // console.log(shopEnd)
+  // console.log(breakStart)
+  // console.log(breakEnd)
+  // console.log(reserveStart)
+  // console.log(reserveEnd)
 
   return {shopStart, shopEnd, breakStart, breakEnd, reserveStart, reserveEnd}
 }
@@ -127,7 +128,7 @@ function _fillTimeSlots() {
 // GoogleカレンダーIDをスクリプトエディタに紐づける
 function setCalendarId(){
 
-  
+
   return 
 }
 
