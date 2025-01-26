@@ -50,7 +50,7 @@ function doPost(e) {
             const messageBody = [
                 {
                     "type": "text",
-                    "text": "予約を開始します。質問が全部で⚫︎個ありますのでお答えください。\nまずはじめに次の日付から希望日を1~8の数字で教えてください。\n"
+                    "text": `ご予約ですね、ご希望を承ります。\n\n質問が全部で⚫︎個ありますのでお答えください。\n①まずはじめに次の日付から希望日を1~8の数字で教えてください。`
                 },
                 {
                     "type": "text",
@@ -68,31 +68,51 @@ function doPost(e) {
         if (userState === "waiting_for_date") {
             if (receivedMessage.match(/^[1-8１-８]$/u)) {
                 dateData = dateInfoObject[parseInt(receivedMessage)-1].date
-                replyToLine(replyToken, [{ "type": "text", "text": `${dateData}ですね。空き時間を確認します。` }]);
+                const timeOptionData = getTimeObject(dateData)
+                const timeOptionMessage: [string][] = [];
+                timeOptionData.forEach((item) => {
+                    timeOptionMessage.push([`${item[0] + item[1]}　空席：${item[2]}席`])
+                }) 
+                // if(timeOptionData)
+                replyToLine(replyToken, [
+                    { 
+                        "type": "text", 
+                        "text": `${dateData}ですね。空き時間を確認します。` 
+                    },
+                    { 
+                        "type": "text", 
+                        "text": `質問②\n空き時間を以下の数字からお選びください\n${timeOptionMessage.join("\n")}`
+                    },
+                ]);
                 
                 // 次のステップのために状態を更新
-                cache.put(userId, "waiting_for_time", 300);
+                cache.put(userId, "waiting_for_count", 300);
+
+
+
+                
             } else {
                 // 無効な入力を受け取った場合、最初からやり直し
-                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
+                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
                 cache.remove(userId);  // 状態リセット
             }
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
         }
 
-        if (userState === "waiting_for_time"){
-            if (receivedMessage.match(/^[1-8１-８]$/u)) {
-                timeData = dateInfoObject[parseInt(receivedMessage)-1].date
-                replyToLine(replyToken, [{ "type": "text", "text": `${dateData}ですね。空き時間を確認します。` }]);
+        // 状態がwaiting_for_timeになったら時間の選択をさせる
+        if (userState === "waiting_for_count"){
+            if (receivedMessage.match(/^[0-9０-９]$/u)) {
+                timeData = [parseInt(receivedMessage)-1].date
+            //     replyToLine(replyToken, [{ "type": "text", "text": `${dateData}ですね。空き時間を確認します。` }]);
                 
-                // 次のステップのために状態を更新
-                cache.put(userId, "waiting_for_time", 300);
-            } else {
-                // 無効な入力を受け取った場合、最初からやり直し
-                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
-                cache.remove(userId);  // 状態リセット
-            }
-            return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
+            //     // 次のステップのために状態を更新
+            //     cache.put(userId, "waiting_for_time", 300);
+            // } else {
+            //     // 無効な入力を受け取った場合、最初からやり直し
+            //     replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
+            //     cache.remove(userId);  // 状態リセット
+            // }
+            // return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
         }
 
 
@@ -133,18 +153,22 @@ function getDateobject(): {num: number, date: string}[] {
 }
 
 
-function getTimeObject(dateInfo: string): [index: string, time: string, slot: number][] | Response{
+function getTimeObject(dateInfo: string): [index: string, time: string, slot: number][]{
     dateInfo = "1月27日";
+    // 該当日の予約可能数を用意
+    const targetDateAllSlots = getAllSlots(dateInfo);
+    let allFree: [index: string, time:string, slot: number][] = [];
+    for( let i = 0; i < targetDateAllSlots.length; i ++){
+        allFree.push([`${i + 1}：`, targetDateAllSlots[i][0], targetDateAllSlots[i][1]]);
+    }
     
     // 予約状況の全データを確認
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const listSheet = ss.getSheetByName(listSheetName);
     const listSheetLastRow = listSheet?.getRange(1,1).getNextDataCell(SpreadsheetApp.Direction.DOWN).getRow();
-    if(!listSheetLastRow || listSheetLastRow === 0) return new Response("どの時間でも空いています")
+    if(!listSheetLastRow || listSheetLastRow === 0) return allFree;
     const listAllData = listSheet?.getRange(2,1,listSheetLastRow, 5).getDisplayValues();
 
-    // 該当日の予約可能数を用意
-    const targetDateAllSlots = getAllSlots(dateInfo);
     // 予約リストの中で、該当日に絞ったデータ
     const filterdListData: [string, string, number, string, string][] = listAllData?.filter((item) => item[0].match(dateInfo)) as [string, string, number, string, string][];
     console.log("filterdListData");
@@ -175,8 +199,6 @@ function getTimeObject(dateInfo: string): [index: string, time: string, slot: nu
     for( let i = 0; i < slots.length; i ++){
         outputData.push([`${i + 1}：`, slots[i][0], slots[i][1]]);
     }
-
-    if(!outputData || outputData.length < 1) return new Response("この日に空き時間はありません。再度予約からやり直してください");
     return outputData
 }
 
