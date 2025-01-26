@@ -141,14 +141,36 @@ function getTimeObject(dateInfo: string): {time: string, slot: string}[] | Respo
     const listSheet = ss.getSheetByName(listSheetName);
     const listSheetLastRow = listSheet?.getRange(1,1).getNextDataCell(SpreadsheetApp.Direction.DOWN).getRow();
     if(!listSheetLastRow || listSheetLastRow === 0) return new Response("どの時間でも空いています")
-    const listAllData = listSheet?.getRange(2,1,listSheetLastRow, 5).getValues();
+    const listAllData = listSheet?.getRange(2,1,listSheetLastRow, 5).getDisplayValues();
 
-    
-    const dateFilterdData: number[] = listAllData?.filter((item) => item[0].match(dateInfo)).filter((item) => item[2]).flat();
-    let slots = 0;
-    for( let i = 0; i < dateFilterdData?.length; i++){
-        slots -= dateFilterdData[i]
-    }
+    // 該当日の予約可能数を用意
+    const baseSheet = ss.getSheetByName(baseSheetName);
+    const shopOpen = getTimeData() as{
+        shopStart: {hours: string, minutes: string},
+        shopEnd: {hours: string, minutes: string},
+    };
+
+
+
+    let slots = baseSheet?.getRange(13,3).getValue() as number;
+
+
+
+
+
+
+console.log(slots);
+const dateFilterdData: number[]= listAllData?.filter((item) => item[0].match(dateInfo)) ? listAllData?.filter((item) => item[0].match(dateInfo)): [];
+console.log(dateFilterdData);
+for( let i = 0; i < dateFilterdData?.length; i++){
+    console.log(dateFilterdData[i][2])
+
+    slots -= dateFilterdData[i][2]
+}
+console.log(slots);
+
+
+
     const timeObject: {time: string, slot: string}[] = [];
 
     if(!timeObject || timeObject.length < 1) return new Response("この日に空き時間はありません。再度予約からやり直してください");
@@ -156,3 +178,10 @@ function getTimeObject(dateInfo: string): {time: string, slot: string}[] | Respo
     
     return timeObject
 }
+
+
+
+
+
+
+// 任意の日付の予約可能数リストを返す

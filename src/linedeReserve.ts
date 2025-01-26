@@ -63,12 +63,12 @@ function getTimeData():
     minutes: parseInt(baseSheet.getRange(11,6).getValue()),
   }
 
-  console.log(shopStart)
-  console.log(shopEnd)
-  console.log(breakStart)
-  console.log(breakEnd)
-  console.log(reserveStart)
-  console.log(reserveEnd)
+  // console.log(shopStart)
+  // console.log(shopEnd)
+  // console.log(breakStart)
+  // console.log(breakEnd)
+  // console.log(reserveStart)
+  // console.log(reserveEnd)
 
   return {shopStart, shopEnd, breakStart, breakEnd, reserveStart, reserveEnd}
 }
