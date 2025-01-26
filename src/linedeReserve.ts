@@ -1,4 +1,5 @@
 const baseSheetName = "店舗基本情報";
+const reserveBaseSheetName = "【原本】7日間予定";
 
 // スプレッドシートで時間（分）の値にゼロをつける関数
 function codeEdit(){
@@ -29,35 +30,36 @@ type customTime = {
   hours: number | null,
   minutes: number | null,
 }
-
-
-function getTimeData(): {} {
+// スプレッドシートの基本情報シートから営業・休憩・予約の開始時間・終了時間を取得して返す関数
+function getTimeData(): 
+{shopStart: {hours: string, minute: number}, shopEnd: {hours: string, minute: number}, braekStart: {hours: string, minute: number}, breakEnd: {hours: string, minute: number}, reserveStart: {hours: string, minute: number}, reserveEnd: {hours: string, minute: number}}  | {}
+{
   const baseSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(baseSheetName);
   if(!baseSheet) return {};
 
   const shopStart: customTime = {
-    hours: baseSheet.getRange(5,3).getValue(),
-    minutes: parseInt(baseSheet.getRange(5,6).getValue()),
-  };
-  const shopEnd: customTime = {
     hours: baseSheet.getRange(6,3).getValue(),
     minutes: parseInt(baseSheet.getRange(6,6).getValue()),
-  }
-  const breakStart: customTime = {
+  };
+  const shopEnd: customTime = {
     hours: baseSheet.getRange(7,3).getValue(),
     minutes: parseInt(baseSheet.getRange(7,6).getValue()),
-  };
-  const breakEnd: customTime = {
+  }
+  const breakStart: customTime = {
     hours: baseSheet.getRange(8,3).getValue(),
     minutes: parseInt(baseSheet.getRange(8,6).getValue()),
-  }
-  const reserveStart: customTime = {
+  };
+  const breakEnd: customTime = {
     hours: baseSheet.getRange(9,3).getValue(),
     minutes: parseInt(baseSheet.getRange(9,6).getValue()),
-  };
-  const reserveEnd: customTime = {
+  }
+  const reserveStart: customTime = {
     hours: baseSheet.getRange(10,3).getValue(),
     minutes: parseInt(baseSheet.getRange(10,6).getValue()),
+  };
+  const reserveEnd: customTime = {
+    hours: baseSheet.getRange(11,3).getValue(),
+    minutes: parseInt(baseSheet.getRange(11,6).getValue()),
   }
 
   console.log(shopStart)
@@ -71,12 +73,11 @@ function getTimeData(): {} {
 }
 
 
-
-function fillTimeSlots() {
-  const listSheetName = "7日間予定";
+// 初期設定用：7日間予定のシートに、予約開始時間と終了時間に応じてA列に値をセットする関数
+function _fillTimeSlots() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(listSheetName);
-  if(!sheet) return new Error (`${listSheetName}のシートが見つかりませんでした`);
+  const sheet = ss.getSheetByName(reserveBaseSheetName);
+  if(!sheet) return new Error (`${reserveBaseSheetName}のシートが見つかりませんでした`);
 
   // 営業開始時間、営業終了時間、予約枠間隔
   const startTimeCell: string = sheet.getRange("G1").getValue();  // 例: "11:00"（文字列）
@@ -99,34 +100,34 @@ function fillTimeSlots() {
 
   // 営業時間を分単位で計算
   const diff = (endTimeUnix - startTimeUnix ) / 60;
-  console.log(diff);
+  // console.log(diff);
   
-  const steps = diff / intervalCell;
-  for (let i = 0; i < ; i++) {
-    let totalMinutes = hours * 60 + minutes + (intervalCell * i);
-    let newHours = Math.floor(totalMinutes / 60);
-    let newMinutes = totalMinutes % 60;
+  // 時間間隔に応じて予約枠を出力
+  const steps = diff / intervalCell;  //繰り返す回数
+  const reserveSlots: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    let newHours = startHours + Math.floor(intervalCell * i / 60);
+    let newMinutes = startMinutes + Math.floor(intervalCell * i % 60);
 
     // 時刻を "hh:mm" 形式に整える（ゼロ埋め）
     let formattedTime = ('0' + newHours).slice(-2) + ":" + ('0' + newMinutes).slice(-2);
-    
+    reserveSlots.push(formattedTime);
+  }
 
-//     // 開始位置（4行目からスタート、3行間隔で貼り付け）
-// let startRow = 4;  // 最初の貼り付け位置
-// let rowInterval = 3;  // 3行おき
+  // 開始位置（4行目からスタート、3行間隔で貼り付け）
+  let startRow = 4;  // 最初の貼り付け位置
+  let rowInterval = 3;  // 3行おき
 
-// // 配列の要素をスプレッドシートに書き込む
-// for (let i = 0; i < timeSlots.length; i++) {
-//   sheet.getRange(startRow + (i * rowInterval), 1).setValue(timeSlots[i]);
-// }
-
-
-
-
-
-//     // 結果を A列に書き込む
-//     sheet.getRange(i + 2, 1).setValue(formattedTime);
-//   }
+  // 配列の要素をスプレッドシートに書き込む
+  for (let i = 0; i < reserveSlots.length; i++) {
+    sheet.getRange(startRow + (i * rowInterval), 1).setValue(reserveSlots[i]);
+  }
 }
 
+// GoogleカレンダーIDをスクリプトエディタに紐づける
+function setCalendarId(){
+
+  
+  return 
+}
 
