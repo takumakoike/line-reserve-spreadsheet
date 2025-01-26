@@ -185,3 +185,52 @@ console.log(slots);
 
 
 // 任意の日付の予約可能数リストを返す
+function getAllSlots(dateInfo: string): [time: string, slots: number][] {
+    dateInfo = "1月27日"
+    
+    // 予約可能最大数を取得
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const baseSheet = ss.getSheetByName(baseSheetName);
+    const maxSlots = baseSheet?.getRange(13,3).getValue() as number;
+
+    // 営業開始時間、終了時間、休憩開始時間、終了時間を取得する
+    const startTimeCell: string = `${baseSheet?.getRange(6,3).getValue()}:${baseSheet?.getRange(6,6).getValue()}`;
+    const endTimeCell: string = `${baseSheet?.getRange(7,3).getValue()}:${baseSheet?.getRange(7,6).getValue()}`;
+    const intervalCell: number = baseSheet?.getRange(15,3).getValue();   // 例: 30（数値）
+
+    // 開始時間について"hh:mm" の文字列を Date オブジェクトに変換する
+    const startTimeParts: string[] = startTimeCell.split(":");  
+    let startHours = parseInt(startTimeParts[0]);
+    let startMinutes = parseInt(startTimeParts[1]);
+    const startInfo = Utilities.formatDate( new Date(2025, 0, 1, startHours, startMinutes), "GMT", "dd MMM yyyy HH:mm:ss z");
+    const startTimeUnix = Date.parse(startInfo)/1000;
+    
+    // 終了時間について"hh:mm" の文字列を Date オブジェクトに変換する
+    const endTimeParts: string[] = endTimeCell.split(":");  
+    let endHours = parseInt(endTimeParts[0]);
+    let endMinutes = parseInt(endTimeParts[1]);
+    const endInfo = Utilities.formatDate( new Date(2025, 0, 1, endHours, endMinutes), "GMT", "dd MMM yyyy HH:mm:ss z")
+    const endTimeUnix = Date.parse(endInfo)/1000;
+
+    // 除外する休憩時間
+    const excludeStart = `${baseSheet?.getRange(8,3).getValue()}:${baseSheet?.getRange(8,6).getValue()}`;
+    const excludeEnd = `${baseSheet?.getRange(9,3).getValue()}:${baseSheet?.getRange(9,6).getValue()}`;
+    // 営業時間を分単位で計算
+    const diff = (endTimeUnix - startTimeUnix ) / 60;
+
+      // 時間間隔に応じて予約枠を出力
+    const steps = diff / intervalCell;  //繰り返す回数
+    const reserveSlots: [time: string, slots: number][] = [];
+    for (let i = 0; i < steps; i++) {
+        let newHours = startHours + Math.floor(intervalCell * i / 60);
+        let newMinutes = startMinutes + Math.floor(intervalCell * i % 60);
+        // 時刻を "hh:mm" 形式に整える（ゼロ埋め）
+        let formattedTime = ('0' + newHours).slice(-2) + ":" + ('0' + newMinutes).slice(-2);
+        reserveSlots.push([formattedTime, maxSlots]);
+    }
+
+    const filterdSlots = reserveSlots.filter((time) => time[0] < excludeStart || time[0] >= excludeEnd)
+
+    console.log(filterdSlots);
+    return filterdSlots;
+}
