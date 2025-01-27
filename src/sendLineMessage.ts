@@ -87,7 +87,7 @@ function doPost(e) {
                     },
                 ]);
                 objectData.date = dateData
-                objectData.reservationStep === "checkTime"
+                objectData.reservationStep = "checkTime"
                 userCache.put(userId, JSON.stringify(objectData), 90);
 
             } else {
