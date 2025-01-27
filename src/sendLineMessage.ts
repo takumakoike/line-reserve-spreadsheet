@@ -104,12 +104,12 @@ function doPost(e) {
             if(receivedMessage.toString().match(timeRegex) ){
 
                 const dateData = objectData.date;
-                const timeOptionData = getTimeObject(dateData).map((item) => `${item[0]}　${item[1]}　空席：${item[2]}`).join("\n");
+                const timeOptionData = getTimeObject(dateData).map((item) => `${item.index}　${item.time}　空席：${item.slot}`).join("\n");
                 
                 replyToLine(replyToken, [
                     { 
                         "type": "text", 
-                        "text": `質問②\n${dateData}の予約希望時間を以下の数字からお選びください\n${timeOptionData}\n回答は半角数字でお答えください。`
+                        "text": `【質問②】\n${dateData}の予約希望時間を以下の数字からお選びください\n${timeOptionData}\n回答は半角数字でお答えください。`
                     },
                 ]);
                 
@@ -132,13 +132,14 @@ function doPost(e) {
                 replyToLine(replyToken, [
                     { 
                         "type": "text", 
-                        "text": `受け取ったメッセージ：${receivedMessage}、時間：${timeData}ですね。\n続いて人数を確認します。\n宜しければ『人数』を、最初からやり直す場合には改めて『予約』と入力してください` 
+                        "text": `日付：${dateData}、時間：${timeData}ですね。\n続いて人数を確認します。\n宜しければ『人数』と入力してください。\n最初からやり直す場合には改めて『予約』と入力してください。` 
                     },
                 ]);
 
                 // キャッシュの更新
                 objectData.reservationStep = "checkCount";
                 objectData.time = timeData;
+                objectData.maxSlot = getTimeObject(dateData)[parseInt(receivedMessage)-1].slot;
                 userCache.put(userId, JSON.stringify(objectData), 90);
             } else {
                 // 無効な入力を受け取った場合、最初からやり直し
