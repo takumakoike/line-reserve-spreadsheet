@@ -32,29 +32,31 @@ function doPost(e) {
         const userId = webhookEvents.events[0].source.userId;  // ユーザーIDの取得
 
         const userCache = CacheService.getUserCache();
-        const cacheDataDetail = {
-            userID: userId,
-            date:"",
-            time:"",
-            count:"",
-            tel:"",
-            name:"",
-            reservationId: "",
-            reservationStep:"",
+        let cacheData = userCache.get(userId);
+        let objectData; 
+
+        if(!cacheData){
+            const cacheDataDetail = {
+                userID: userId,
+                date:"",
+                time:"",
+                count:"",
+                tel:"",
+                name:"",
+                reservationId: "",
+                reservationStep:"",
+            }
+            objectData = cacheDataDetail;
+        } else {
+            objectData = JSON.parse(cacheData);
         }
-        // 初回のキャッシュデータを作成。全部カラで用意。
-        userCache.put("user", JSON.stringify(cacheDataDetail), 3600);
-        const cacheData = userCache.get("user");
-        const objectData = JSON.parse(cacheData!);
-        let reservationId = objectData.reservationId;
-        let reservationStep = objectData.reservationStep;
 
         // 日付選択に必要
         const dateInfoObject = getDateobject();
 
 
         // 初回メッセージ処理: "予約"を受け取った場合
-        if (receivedMessage === "予約" && reservationId === "") {
+        if (receivedMessage === "予約") {
             const dateInfoString = dateInfoObject.map((item) => `${item.num}：${item.date}`).join("\n");
             const messageBody = [
                 {
@@ -69,40 +71,49 @@ function doPost(e) {
             replyToLine(replyToken, messageBody);
             
             // キャッシュの更新処理
-            if(cacheData){
-                reservationStep = "waiting_for_Date";
-                userCache.put("user", JSON.stringify(objectData), 3600)
-            }
+            objectData.reservationStep = "checkDate";
+            userCache.put(userId, JSON.stringify(objectData), 90)
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
         } 
 
-        // 状態が"waiting_for_time"のとき、時間の選択を待つ
-        if (reservationStep === "waiting_for_Date") {
-            if (receivedMessage.match(/^[1-8]$/u)) {
+        // 日付選択
+        if (objectData.reservationStep === "checkDate") {
+            if (receivedMessage.match(/^[1-8１-８]$/)) {
                 let dateData = dateInfoObject[parseInt(receivedMessage)-1].date //入力された値から日付データをCacheに保存
-                const timeOptionData = getTimeObject(dateData)
-                const timeOptionMessage: string[] = [];
-                timeOptionData.forEach((item) => {
-                    timeOptionMessage.push(`${item[0] + item[1]}　空席：${item[2]}席`)
-                }) 
+                replyToLine(replyToken, [
+                    { 
+                        "type": "text", 
+                        "text": `受け取ったメッセージ：${receivedMessage}、日付：${dateData}ですね。\n続いて空き時間を確認します。\n宜しければ『時間』を、最初からやり直す場合には改めて『予約』と入力してください` 
+                    },
+                ]);
+                objectData.date = dateData
+                objectData.reservationStep ==="checkTime"
+                userCache.put(userId, JSON.stringify(objectData), 90);
+
+            } else {
+                // 無効な入力を受け取った場合、最初からやり直し
+                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
+                userCache.remove("user");
+            }
+            return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
+        }
+
+        // 時間選択
+        const timeRegex = /時間|じかん|jikan|dikan|zikan/
+        if(objectData.reservationStep === "checkTime" && receivedMessage.match(timeRegex)){
+            const dateData = objectData.date;
+            const timeOptionData = getTimeObject(dateData).map((item) => `${item[0]}　${item[1]}　空席：${item[2]}`).join("\n");
 
                 replyToLine(replyToken, [
                     { 
                         "type": "text", 
-                        "text": `${dateData}ですね。空き時間を確認します。` 
-                    },
-                    { 
-                        "type": "text", 
-                        "text": `質問②\n空き時間を以下の数字からお選びください\n${timeOptionMessage.join("\n")}\n回答は半角数字でお答えください。`
+                        "text": `質問②\n${dateData}の予約希望時間を以下の数字からお選びください\n${timeOptionData}\n回答は半角数字でお答えください。`
                     },
                 ]);
                 
-                // 次のステップのために状態を更新
-                if(cacheData){
-                    reservationStep = "waiting_for_count";
-                    objectData.date = dateData
-                    userCache.put("user", JSON.stringify(objectData), 60);
-                }
+                objectData.reservationStep = "waiting_for_count";
+                objectData.date = dateData
+                userCache.put(userId, JSON.stringify(objectData), 90);
             } else {
                 // 無効な入力を受け取った場合、最初からやり直し
                 replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
@@ -177,13 +188,13 @@ function getDateobject(): {num: number, date: string}[] {
 }
 
 
-function getTimeObject(dateInfo: string): {index: string, time: string, slot: number}[]{
+function getTimeObject(dateInfo: string): {index: number, time: string, slot: number}[]{
     // dateInfo = "1月27日";
     // 該当日の予約可能数を用意
     const targetDateAllSlots = getAllSlots(dateInfo);
-    let allFree: {index: string, time:string, slot: number}[] = [];
+    let allFree: {index: number, time:string, slot: number}[] = [];
     for( let i = 0; i < targetDateAllSlots.length; i ++){
-        allFree.push({index: `${i + 1}：`, time: targetDateAllSlots[i][0], slot: targetDateAllSlots[i][1]});
+        allFree.push({index: i + 1, time: targetDateAllSlots[i][0], slot: targetDateAllSlots[i][1]});
     }
     
     // 予約状況の全データを確認
@@ -219,20 +230,23 @@ function getTimeObject(dateInfo: string): {index: string, time: string, slot: nu
         return [time, remainingSeats]
     })
 
-    let outputData: {index: string, time: string, slot: number}[]= [];
+    let outputData: {index: number, time: string, slot: number}[]= [];
     for( let i = 0; i < slots.length; i ++){
-        outputData.push({index: `${i + 1}：`, time: slots[i][0], slot: slots[i][1]});
+        outputData.push({index: i + 1, time: slots[i][0], slot: slots[i][1]});
     }
     return outputData
 }
 
 // 任意の日付の予約可能数リストを返す
-function getAllSlots(dateInfo: string): [time: string, slots: number][] {
-    // dateInfo = "1月27日"
-    
+function getAllSlots(dateInfo: string): [time: string, slots: number][] {    
+    dateInfo = "1月28日"
     // 予約可能最大数を取得
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const baseSheet = ss.getSheetByName(baseSheetName);
+    if(!baseSheet){
+        console.error(`${baseSheetName}が見つかりませんでした`);
+        return [];
+    }
     const maxSlots = baseSheet?.getRange(13,3).getValue() as number;
 
     // 営業開始時間、終了時間、休憩開始時間、終了時間を取得する
