@@ -127,8 +127,12 @@ function _fillTimeSlots() {
 
 // GoogleカレンダーIDをスクリプトエディタに紐づける
 function setCalendarId(){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const baseSheet = ss.getSheetByName(baseSheetName);
 
+  const calendarId = baseSheet?.getRange(3,3).getValue();
 
+  PropertiesService.getScriptProperties().setProperty("MYCALENDAR_ID", calendarId)
   return 
 }
 
