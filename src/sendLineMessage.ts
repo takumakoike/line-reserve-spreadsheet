@@ -99,9 +99,9 @@ function doPost(e) {
         }
 
         // 時間選択
-        const timeRegex = /\b(時間|じかん|jikan|dikan|zikan)\b/
+        const timeRegex = /(時間)|(じかん)|(jikan)|(dikan)|(zikan)/
         if(objectData.reservationStep === "checkTime"){
-            if(receivedMessage.toString().match(timeRegex)){
+            if(receivedMessage.toString().match(timeRegex) ){
 
                 const dateData = objectData.date;
                 const timeOptionData = getTimeObject(dateData).map((item) => `${item[0]}　${item[1]}　空席：${item[2]}`).join("\n");
@@ -118,7 +118,7 @@ function doPost(e) {
                 userCache.put(userId, JSON.stringify(objectData), 90);
             } else {
                 // 無効な入力を受け取った場合、最初からやり直し
-                replyToLine(replyToken, [{ "type": "text", "text": `②${objectData.date}、${objectData.reservationStep}無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。`}]);
+                replyToLine(replyToken, [{ "type": "text", "text": `②${receivedMessage.toString().match(timeRegex)}、${objectData.date}、${objectData.reservationStep}無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。`}]);
                 userCache.remove("user");
             }
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
