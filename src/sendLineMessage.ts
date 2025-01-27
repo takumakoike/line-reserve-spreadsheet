@@ -27,62 +27,59 @@ function doPost(e) {
         if (!webhookEvents.events || webhookEvents.events.length === 0) {
             return ContentService.createTextOutput(JSON.stringify({ status: "No events" })).setMimeType(ContentService.MimeType.JSON);
         }
-        
         const replyToken = webhookEvents.events[0].replyToken;
         const receivedMessage = webhookEvents.events[0].message.text;
         const userId = webhookEvents.events[0].source.userId;  // ユーザーIDの取得
 
-        // 予約データ
-        let dateData;
-        let timeData;
-        let reserveCount;
-        let reserveName;
-        let reserveTEL;
+        const userCache = CacheService.getUserCache();
+        const cacheDataDetail = {
+            userID: userId,
+            date:"",
+            time:"",
+            count:"",
+            tel:"",
+            name:"",
+            reservationId: "",
+            reservationStep:"",
+        }
+        // 初回のキャッシュデータを作成。全部カラで用意。
+        userCache.put("user", JSON.stringify(cacheDataDetail), 3600);
+        const cacheData = userCache.get("user");
+        const objectData = JSON.parse(cacheData!);
+        let reservationId = objectData.reservationId;
+        let reservationStep = objectData.reservationStep;
 
-        const cache = CacheService.getScriptCache();
-        cache.putAll({
-            // id: userId || "",
-            date: dateData || "",
-            time: timeData || "",
-            count: (reserveCount || 0).toString(),
-            name: reserveName || "",
-            tel: reserveTEL || "",
-        });
-        // let userState = cache.get("id");
-        let userCache = cache.getAll(["id", "date", "time", "count", "name", "tel"])
-        
-        const dateInfoObject = getDateobject()
-        const dateInfoString = dateInfoObject.map((item) => `${item.num}：${item.date}`).join("\n");
+        // 日付選択に必要
+        const dateInfoObject = getDateobject();
 
 
         // 初回メッセージ処理: "予約"を受け取った場合
-        if (receivedMessage === "予約" && !userCache.id) {
+        if (receivedMessage === "予約" && reservationId === "") {
+            const dateInfoString = dateInfoObject.map((item) => `${item.num}：${item.date}`).join("\n");
             const messageBody = [
                 {
                     "type": "text",
-                    "text": `ご予約ですね、ご希望を承ります。\n\n質問が全部で⚫︎個ありますのでお答えください。${cache.get("label")}`
+                    "text": `ご予約ですね、ご希望を承ります。\n\n質問が全部で⚫︎個ありますのでお答えください。`
                 },
                 {
                     "type": "text",
-                    "text": `①まずはじめに次の日付から希望日を1~8の数字で教えてください。\n${dateInfoString}`
+                    "text": `①まずはじめに次の日付から希望日を1~8の数字で教えてください。\n\n${dateInfoString}`
                 },
             ];
-            
-            // ユーザーの状態を"予約開始"にセット
-            const startCacheValues = {
-                id: userId,
-                label: "waiting_for_time"
-            }
-            cache.putAll(startCacheValues, 60);  // 5分間保持
             replyToLine(replyToken, messageBody);
+            
+            // キャッシュの更新処理
+            if(cacheData){
+                reservationStep = "waiting_for_Date";
+                userCache.put("user", JSON.stringify(objectData), 3600)
+            }
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
         } 
 
         // 状態が"waiting_for_time"のとき、時間の選択を待つ
-        if (userCache.get("label") === "waiting_for_time") {
-            if (receivedMessage.match(/^[1-8１-８]$/u)) {
-                dateData = dateInfoObject[parseInt(receivedMessage)-1].date //入力された値から日付データをCacheに保存
-
+        if (reservationStep === "waiting_for_Date") {
+            if (receivedMessage.match(/^[1-8]$/u)) {
+                let dateData = dateInfoObject[parseInt(receivedMessage)-1].date //入力された値から日付データをCacheに保存
                 const timeOptionData = getTimeObject(dateData)
                 const timeOptionMessage: string[] = [];
                 timeOptionData.forEach((item) => {
@@ -101,54 +98,53 @@ function doPost(e) {
                 ]);
                 
                 // 次のステップのために状態を更新
-                const secondCacheValues = {
-                    date: dateData,
-                    time: timeOptionData,
-                    "label": "waiting_for_count"
+                if(cacheData){
+                    reservationStep = "waiting_for_count";
+                    objectData.date = dateData
+                    userCache.put("user", JSON.stringify(objectData), 60);
                 }
-                cache.putAll(secondCacheValues, 60);
             } else {
                 // 無効な入力を受け取った場合、最初からやり直し
                 replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n半角数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
-                cache.remove(userCache.id);
+                userCache.remove("user");
             }
             return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
         }
 
-        // 状態がwaiting_for_countになったら人数の選択をさせる
-        if (userCache.label === "waiting_for_count"){
-            // 受け取った値の整理：時間をキャッシュに保存
-            if (receivedMessage.match(/^[0-9]{0,2}$/u)) {
-                const timeDataIndex = CacheService.getScriptCache().get("time")!;
-                timeData = timeDataIndex[parseInt(receivedMessage)-1]
-                replyToLine(replyToken, [
-                    { 
-                        "type": "text", 
-                        "text": `${timeData}のご希望ですね。\n続いてご予約の人数を教えてください。` 
-                    }
-                ]);
+        // // 状態がwaiting_for_countになったら人数の選択をさせる
+        // if (userCache.label === "waiting_for_count"){
+        //     // 受け取った値の整理：時間をキャッシュに保存
+        //     if (receivedMessage.match(/^[0-9]{0,2}$/u)) {
+        //         const timeDataIndex = CacheService.getScriptCache().get("time")!;
+        //         timeData = timeDataIndex[parseInt(receivedMessage)-1]
+        //         replyToLine(replyToken, [
+        //             { 
+        //                 "type": "text", 
+        //                 "text": `${timeData}のご希望ですね。\n続いてご予約の人数を教えてください。` 
+        //             }
+        //         ]);
                 
-                // 次のステップのために状態を更新
-                const thirdCacheValues = {
-                    id: userId,
-                    date: dateData,
-                    time: timeData,
-                    label: "waiting_for_name"
-                }
-                cache.putAll(thirdCacheValues, 300);
-            } else {
-                // 無効な入力を受け取った場合、最初からやり直し
-                replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
-                cache.remove(userId);  // 状態リセット
-            }
-            return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
-        }  
+        //         // 次のステップのために状態を更新
+        //         const thirdCacheValues = {
+        //             id: userId,
+        //             date: dateData,
+        //             time: timeData,
+        //             label: "waiting_for_name"
+        //         }
+        //         cache.putAll(thirdCacheValues, 300);
+        //     } else {
+        //         // 無効な入力を受け取った場合、最初からやり直し
+        //         replyToLine(replyToken, [{ "type": "text", "text": "無効な入力です。\n1~8の数字で回答してください。\nあらためて予約ボタンをタップしてください。" }]);
+        //         cache.remove(userId);  // 状態リセット
+        //     }
+        //     return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
+        // }  
 
-        // 予約が完了していない場合、リセットメッセージを送信
-        replyToLine(replyToken, [{ "type": "text", "text": `${userCache.id}\n『予約』と送信して予約を開始してください。` }]);
-        cache.remove(userCache.id);
+        // // 予約が完了していない場合、リセットメッセージを送信
+        // replyToLine(replyToken, [{ "type": "text", "text": `${userCache.id}\n『予約』と送信して予約を開始してください。` }]);
+        // cache.remove(userCache.id);
 
-        return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
+        // return ContentService.createTextOutput(JSON.stringify({ status: "200" })).setMimeType(ContentService.MimeType.JSON);
 
     } catch (error) {
         Logger.log("Error: " + error.toString());
