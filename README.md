@@ -68,13 +68,3 @@ node_modules/
 .env
 .clasp.json
 .claspignore
-
-## 利用環境
-
-- Typescript
-- Clasp
-- Google apps script
-
-## 関連スプレッドシート
-
-## Todo
